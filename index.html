@@ -148,7 +148,9 @@
         const NavbarState = () => {
             const container = document.getElementById('auth-buttons');
             if (store.user) {
-                const isAdmin = store.claims.admin === true;
+                // Change: Check email directly for admin access instead of claims
+                const isAdmin = store.user.email === 'desinixx@gmail.com';
+                
                 container.innerHTML = `
                     <button onclick="window.router.navigate('/dashboard')" class="text-sm font-medium hover:text-blue-600 transition">Dashboard</button>
                     ${isAdmin ? `<button onclick="window.router.navigate('/admin')" class="text-sm font-medium hover:text-blue-600 transition">Admin</button>` : ''}
@@ -386,7 +388,8 @@
         };
 
         const loadAdminData = async () => {
-            if (!store.claims.admin) return document.getElementById('admin-table-body').innerHTML = '<tr><td colspan="4" class="p-4 text-center text-red-500">Access Denied</td></tr>';
+            // Change: Strict Email Check for Admin Data Load
+            if (store.user?.email !== 'desinixx@gmail.com') return document.getElementById('admin-table-body').innerHTML = '<tr><td colspan="4" class="p-4 text-center text-red-500">Access Denied</td></tr>';
             
             const q = query(collection(db, "scholarshipApplications"), orderBy("createdAt", "desc"));
             const snaps = await getDocs(q);
@@ -415,6 +418,8 @@
         
         onAuthStateChanged(auth, async (user) => {
             store.user = user;
+            // Note: Claims fetch is less critical now since we check email directly, 
+            // but keeping it doesn't hurt.
             if (user) {
                 const tokenResult = await user.getIdTokenResult();
                 store.claims = tokenResult.claims;
