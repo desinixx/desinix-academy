@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Desinix Academy | Premium Online Learning</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'], display: ['Outfit', 'sans-serif'] },
+                    colors: {
+                        primary: { 50: '#eff6ff', 500: '#3b82f6', 600: '#2563eb', 900: '#1e3a8a' },
+                        dark: { bg: '#0f172a', card: '#1e293b', text: '#f8fafc' }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        :root {
+            --glass-bg: rgba(255, 255, 255, 0.7);
+            --dark-glass-bg: rgba(30, 41, 59, 0.7);
+        }
+        .glass { background: var(--glass-bg); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.1); }
+        .dark .glass { background: var(--dark-glass-bg); border: 1px solid rgba(255,255,255,0.05); }
+        .glass-card { background: rgba(255,255,255,0.5); backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.3); transition: transform 0.3s; }
+        .dark .glass-card { background: rgba(30,41,59,0.6); border: 1px solid rgba(255,255,255,0.05); }
+        .glass-card:hover { transform: translateY(-5px); }
+        .mesh-gradient { background: radial-gradient(circle at 50% 50%, rgba(37, 99, 235, 0.1) 0%, rgba(0, 0, 0, 0) 50%); }
+        .dark .mesh-gradient { background: radial-gradient(circle at 50% 50%, rgba(37, 99, 235, 0.15) 0%, rgba(15, 23, 42, 1) 100%); }
+        .spinner { border: 3px solid rgba(255,255,255,0.3); border-radius: 50%; border-top: 3px solid #3b82f6; width: 24px; height: 24px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .toast { transform: translateX(150%); transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .toast.show { transform: translateX(0); }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-900 dark:bg-dark-bg dark:text-gray-100 font-sans mesh-gradient min-h-screen">
+
+    <nav class="fixed w-full z-50 transition-all duration-300 glass" id="navbar">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <div class="flex-shrink-0 flex items-center gap-2 cursor-pointer" onclick="router.navigate('/')">
+                    <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">D</div>
+                    <span class="font-display font-bold text-xl tracking-tight">Desinix<span class="text-blue-600">Academy</span></span>
+                </div>
+                <div class="hidden md:flex items-center space-x-8">
+                    <a href="#/" class="text-sm font-medium hover:text-blue-600">Home</a>
+                    <a href="#/courses" class="text-sm font-medium hover:text-blue-600">Courses</a>
+                    <a href="#/scholarship" class="text-sm font-medium hover:text-blue-600">Scholarship</a>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button id="theme-toggle" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"><i class="ph ph-moon text-xl dark:hidden"></i><i class="ph ph-sun text-xl hidden dark:block text-yellow-400"></i></button>
+                    <div id="auth-buttons" class="flex items-center space-x-3"></div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main id="app" class="pt-16 min-h-screen flex flex-col"></main>
+    <div id="toast-container" class="fixed top-20 right-5 z-[60] flex flex-col gap-2"></div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getFirestore, collection, addDoc, getDocs, doc, setDoc, getDoc, query, where, serverTimestamp, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        // --- PRODUCTION CONFIGURATION ---
+        // REPLACE WITH YOUR ACTUAL FIREBASE CONFIG
+        const firebaseConfig = {
+            apiKey: "AIzaSyBTdNMYeb8R2OPjfyi1lJycEjGouNASBVU",
+            authDomain: "desinix-academy.firebaseapp.com",
+            projectId: "desinix-academy",
+            storageBucket: "desinix-academy.firebasestorage.app",
+            messagingSenderId: "744552846061",
+            appId: "1:744552846061:web:dc307ac82176a063b832e4"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        
+        const store = {
+            user: null,
+            userData: null,
+            claims: {},
+            courses: [
+                { id: 'c1', title: 'Full Stack React Masterclass', instructor: 'Sarah Dev', price: 4999, rating: 4.8, students: 1200, image: 'https://images.unsplash.com/photo-1633356122544-f134324a6cee?w=800&q=80', tags: ['Web', 'React'] },
+                { id: 'c2', title: 'Advanced UI/UX Design', instructor: 'Alex Creative', price: 3499, rating: 4.9, students: 850, image: 'https://images.unsplash.com/photo-1586717791821-3f44a5638d48?w=800&q=80', tags: ['Design', 'Figma'] },
+                { id: 'c3', title: 'Python for Data Science', instructor: 'Dr. Data', price: 5999, rating: 4.7, students: 2100, image: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=800&q=80', tags: ['Python', 'AI'] },
+            ]
+        };
+
+        // --- UTILS ---
+        const showToast = (message, type = 'success') => {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const color = type === 'success' ? 'bg-green-500' : 'bg-red-500';
+            const icon = type === 'success' ? 'ph-check-circle' : 'ph-warning-circle';
+            toast.className = `toast show glass flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg text-white ${color} backdrop-blur-md bg-opacity-90`;
+            toast.innerHTML = `<i class="ph ${icon} text-xl"></i><span class="text-sm font-medium">${message}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 400); }, 3000);
+        };
+
+        const convertToBase64 = (file) => {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = error => reject(error);
+            });
+        };
+
+        // --- AUTHENTICATION ---
+        const handleGoogleLogin = async () => {
+            const provider = new GoogleAuthProvider();
+            try {
+                const result = await signInWithPopup(auth, provider);
+                const userRef = doc(db, "users", result.user.uid);
+                const userSnap = await getDoc(userRef);
+                
+                if (!userSnap.exists()) {
+                    await setDoc(userRef, {
+                        email: result.user.email,
+                        name: result.user.displayName,
+                        enrolledCourses: [],
+                        createdAt: serverTimestamp()
+                    });
+                }
+                showToast(`Welcome back, ${result.user.displayName}!`);
+                router.navigate('/dashboard');
+            } catch (error) {
+                showToast(error.message, 'error');
+            }
+        };
+
+        const handleLogout = async () => await signOut(auth) && router.navigate('/');
+
+        // --- COMPONENTS ---
+        const NavbarState = () => {
+            const container = document.getElementById('auth-buttons');
+            if (store.user) {
+                const isAdmin = store.claims.admin === true;
+                container.innerHTML = `
+                    <button onclick="window.router.navigate('/dashboard')" class="text-sm font-medium hover:text-blue-600 transition">Dashboard</button>
+                    ${isAdmin ? `<button onclick="window.router.navigate('/admin')" class="text-sm font-medium hover:text-blue-600 transition">Admin</button>` : ''}
+                    <div class="h-8 w-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-sm border border-blue-200">${store.user.displayName?.[0]}</div>
+                    <button onclick="window.handleLogout()" class="text-gray-500 hover:text-red-500"><i class="ph ph-sign-out text-xl"></i></button>
+                `;
+            } else {
+                container.innerHTML = `
+                    <button onclick="window.router.navigate('/login')" class="text-sm font-medium hover:text-blue-600">Log In</button>
+                    <button onclick="window.router.navigate('/register')" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium">Sign Up</button>
+                `;
+            }
+        };
+
+        const HomeView = () => `
+            <div class="flex-grow flex flex-col justify-center items-center px-4 py-20 relative overflow-hidden">
+                <div class="absolute top-20 left-10 w-72 h-72 bg-purple-400 rounded-full filter blur-3xl opacity-20"></div>
+                <div class="text-center max-w-3xl relative z-10">
+                    <h1 class="text-5xl md:text-6xl font-display font-bold mb-6 text-gray-900 dark:text-white">Master Skills for the <span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">Digital Age</span></h1>
+                    <p class="text-xl text-gray-600 dark:text-gray-300 mb-8">Premium courses in Design, Development, and Data Science.</p>
+                    <div class="flex justify-center gap-4">
+                        <button onclick="window.router.navigate('/courses')" class="px-8 py-3.5 rounded-xl bg-blue-600 text-white font-semibold shadow-lg shadow-blue-600/30">Explore Courses</button>
+                        <button onclick="window.router.navigate('/scholarship')" class="px-8 py-3.5 rounded-xl glass text-gray-700 dark:text-white font-semibold">Scholarships</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        const CoursesView = () => `
+            <div class="max-w-7xl mx-auto px-4 py-10 w-full">
+                <h2 class="text-3xl font-bold mb-8">All Courses</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    ${store.courses.map(c => `
+                        <div class="glass-card rounded-2xl overflow-hidden flex flex-col h-full group">
+                            <div class="relative h-48"><img src="${c.image}" class="w-full h-full object-cover"></div>
+                            <div class="p-5 flex-grow flex flex-col">
+                                <h3 class="text-xl font-bold mb-2">${c.title}</h3>
+                                <p class="text-sm text-gray-500 mb-4">By ${c.instructor}</p>
+                                <div class="mt-auto flex items-center justify-between">
+                                    <span class="text-2xl font-bold">₹${c.price}</span>
+                                    <button onclick="window.initPayment('${c.id}', ${c.price})" class="px-4 py-2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-lg text-sm font-bold hover:opacity-90">Enroll</button>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+
+        const ScholarshipView = () => `
+            <div class="max-w-xl mx-auto px-4 py-10 w-full">
+                <div class="glass-card p-8 rounded-2xl">
+                    <h2 class="text-2xl font-bold mb-2">Scholarship Application</h2>
+                    <p class="text-gray-500 mb-6 text-sm">Upload income certificate for fee waiver.</p>
+                    <form id="scholarship-form" onsubmit="window.handleScholarshipSubmit(event)">
+                        <div class="space-y-4">
+                            <div><label class="block text-sm font-medium mb-1">Annual Income (₹)</label><input type="number" name="income" required class="w-full px-4 py-2 rounded-lg bg-white/50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700"></div>
+                            <div>
+                                <label class="block text-sm font-medium mb-1">Document (PDF/JPG, Max 2MB)</label>
+                                <input type="file" id="doc-upload" accept=".pdf,.jpg,.jpeg,.png" required class="w-full text-sm">
+                            </div>
+                            <button type="submit" id="scholarship-btn" class="w-full py-3 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700">Submit Application</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        `;
+
+        const LoginView = () => `
+            <div class="flex-grow flex items-center justify-center p-4">
+                <div class="glass-card p-8 rounded-2xl w-full max-w-md text-center">
+                    <h2 class="text-2xl font-bold mb-6">Welcome Back</h2>
+                    <button onclick="window.handleGoogleLogin()" class="w-full py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg flex items-center justify-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-700">
+                        <span class="text-sm font-medium">Continue with Google</span>
+                    </button>
+                </div>
+            </div>
+        `;
+
+        const DashboardView = () => `
+            <div class="max-w-7xl mx-auto p-8">
+                <h1 class="text-2xl font-bold mb-6">My Dashboard</h1>
+                <div id="enrolled-courses" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="col-span-full text-center text-gray-500">Loading courses...</div>
+                </div>
+            </div>
+        `;
+
+        const AdminView = () => `
+            <div class="max-w-7xl mx-auto px-4 py-8">
+                <h1 class="text-2xl font-bold mb-6">Admin Panel</h1>
+                <div class="glass-card rounded-xl overflow-hidden">
+                    <table class="w-full text-sm text-left">
+                        <thead class="bg-gray-50 dark:bg-gray-800 uppercase text-xs"><tr><th class="px-6 py-3">User</th><th class="px-6 py-3">Income</th><th class="px-6 py-3">Doc</th><th class="px-6 py-3">Status</th></tr></thead>
+                        <tbody id="admin-table-body" class="divide-y divide-gray-200 dark:divide-gray-700"><tr><td colspan="4" class="px-6 py-4 text-center">Loading...</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+
+        // --- CONTROLLERS ---
+        window.handleScholarshipSubmit = async (e) => {
+            e.preventDefault();
+            if (!store.user) return showToast('Please login to apply', 'error');
+
+            const btn = document.getElementById('scholarship-btn');
+            btn.innerHTML = '<div class="spinner"></div>';
+            btn.disabled = true;
+
+            try {
+                const file = document.getElementById('doc-upload').files[0];
+                if (!file) throw new Error("Select a file");
+                if (file.size > 2 * 1024 * 1024) throw new Error("File must be < 2MB");
+
+                // 1. Convert to Base64 for secure transmission
+                const base64File = await convertToBase64(file);
+
+                // 2. Upload via Netlify Function (Secure)
+                const uploadRes = await fetch('/.netlify/functions/upload-document', {
+                    method: 'POST',
+                    body: JSON.stringify({ fileData: base64File })
+                });
+                
+                if (!uploadRes.ok) throw new Error('Upload failed');
+                const { url } = await uploadRes.json();
+
+                // 3. Save to Firestore
+                await addDoc(collection(db, "scholarshipApplications"), {
+                    userId: store.user.uid,
+                    userName: store.user.displayName,
+                    income: e.target.income.value,
+                    documentUrl: url,
+                    status: 'pending',
+                    createdAt: serverTimestamp()
+                });
+
+                showToast('Application Submitted!');
+                e.target.reset();
+            } catch (err) {
+                showToast(err.message, 'error');
+            } finally {
+                btn.innerHTML = 'Submit Application';
+                btn.disabled = false;
+            }
+        };
+
+        window.initPayment = async (courseId, amount) => {
+            if (!store.user) { router.navigate('/login'); return showToast("Login required", "error"); }
+
+            try {
+                // 1. Create Order (Secure Backend Call)
+                const res = await fetch('/.netlify/functions/create-order', {
+                    method: 'POST',
+                    body: JSON.stringify({ amount: amount * 100 }) // Convert to paise
+                });
+                
+                if (!res.ok) throw new Error("Could not create order");
+                const order = await res.json();
+
+                // 2. Open Razorpay
+                const options = {
+                    key: "rzp_test_YOUR_KEY_HERE", // Replace with your Test Key ID in code, or fetch from config
+                    amount: order.amount,
+                    currency: order.currency,
+                    name: "Desinix Academy",
+                    order_id: order.id,
+                    handler: async function (response) {
+                        showToast("Verifying payment...", "info");
+                        
+                        // 3. Verify & Enroll (Secure Backend Call)
+                        const verifyRes = await fetch('/.netlify/functions/verify-payment', {
+                            method: 'POST',
+                            body: JSON.stringify({
+                                orderCreationId: order.id,
+                                razorpayPaymentId: response.razorpay_payment_id,
+                                razorpaySignature: response.razorpay_signature,
+                                userId: store.user.uid,
+                                courseId: courseId,
+                                amount: amount
+                            })
+                        });
+
+                        const verifyData = await verifyRes.json();
+                        
+                        if (verifyRes.ok) {
+                            showToast("Enrolled Successfully!", "success");
+                            setTimeout(() => router.navigate('/dashboard'), 1500);
+                        } else {
+                            showToast("Payment Verification Failed", "error");
+                        }
+                    },
+                    prefill: { name: store.user.displayName, email: store.user.email },
+                    theme: { color: "#2563eb" }
+                };
+                
+                const rzp = new Razorpay(options);
+                rzp.open();
+
+            } catch (err) {
+                showToast("Payment initialization failed", "error");
+                console.error(err);
+            }
+        };
+
+        // --- ROUTER ---
+        const router = {
+            routes: { '/': HomeView, '/courses': CoursesView, '/scholarship': ScholarshipView, '/login': LoginView, '/register': LoginView, '/dashboard': DashboardView, '/admin': AdminView },
+            navigate(path) { window.location.hash = path; this.render(); },
+            render() {
+                const path = window.location.hash.slice(1) || '/';
+                const view = this.routes[path] || (() => '<div class="text-center pt-20">404</div>');
+                document.getElementById('app').innerHTML = view();
+                window.scrollTo(0,0);
+                
+                if (path === '/dashboard') loadDashboard();
+                if (path === '/admin') loadAdminData();
+            }
+        };
+
+        const loadDashboard = async () => {
+            if (!store.user) return;
+            const q = query(collection(db, 'enrollments'), where('userId', '==', store.user.uid));
+            const snaps = await getDocs(q);
+            const enrolledIds = snaps.docs.map(d => d.data().courseId);
+            const courses = store.courses.filter(c => enrolledIds.includes(c.id));
+            
+            const html = courses.length ? courses.map(c => `
+                <div class="glass-card p-4 rounded-xl flex gap-4">
+                    <img src="${c.image}" class="w-24 h-24 rounded-lg object-cover">
+                    <div><h3 class="font-bold">${c.title}</h3><p class="text-sm text-green-500">Enrolled</p></div>
+                </div>
+            `).join('') : '<p class="col-span-full text-center py-10">No enrollments yet.</p>';
+            
+            document.getElementById('enrolled-courses').innerHTML = html;
+        };
+
+        const loadAdminData = async () => {
+            if (!store.claims.admin) return document.getElementById('admin-table-body').innerHTML = '<tr><td colspan="4" class="p-4 text-center text-red-500">Access Denied</td></tr>';
+            
+            const q = query(collection(db, "scholarshipApplications"), orderBy("createdAt", "desc"));
+            const snaps = await getDocs(q);
+            
+            document.getElementById('admin-table-body').innerHTML = snaps.docs.map(doc => {
+                const d = doc.data();
+                return `
+                    <tr class="bg-white dark:bg-gray-800 border-b dark:border-gray-700">
+                        <td class="px-6 py-4">${d.userName}</td>
+                        <td class="px-6 py-4">₹${d.income}</td>
+                        <td class="px-6 py-4"><a href="${d.documentUrl}" target="_blank" class="text-blue-600 underline">View</a></td>
+                        <td class="px-6 py-4"><span class="px-2 py-1 rounded bg-yellow-100 text-yellow-800 text-xs">${d.status}</span></td>
+                    </tr>`;
+            }).join('');
+        };
+
+        // --- INIT ---
+        window.router = router;
+        window.initPayment = initPayment;
+        window.handleGoogleLogin = handleGoogleLogin;
+        window.handleLogout = handleLogout;
+        window.handleScholarshipSubmit = handleScholarshipSubmit;
+
+        window.addEventListener('hashchange', () => router.render());
+        document.getElementById('theme-toggle').addEventListener('click', () => document.documentElement.classList.toggle('dark'));
+        
+        onAuthStateChanged(auth, async (user) => {
+            store.user = user;
+            if (user) {
+                const tokenResult = await user.getIdTokenResult();
+                store.claims = tokenResult.claims;
+            }
+            NavbarState();
+            router.render();
+        });
+        
+        router.render();
+    </script>
+</body>
+</html>
